@@ -54,12 +54,12 @@ class StockCard(QFrame):
 
         layout = QGridLayout(self)
 
-        # Stock Symbol Header
+
         symbol_label = QLabel(stock_data['symbol'])
         symbol_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #64B5F6;")
         layout.addWidget(symbol_label, 0, 0, 1, 2)
 
-        # Stock Details
+
         details = [
             ("Shares:", str(stock_data['shares'])),
             ("Price:", f"${stock_data['price']:.2f}"),
@@ -86,7 +86,7 @@ class PortfolioOptimizerWidget(QWidget):
         self.market_data = market_data
 
 
-        # Set dark background color for the main widget
+
         self.setStyleSheet("background-color: #121212;")
 
         self.layout = QVBoxLayout()
