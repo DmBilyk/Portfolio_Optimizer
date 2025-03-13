@@ -2,7 +2,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 from src.data.database import Database
-from src.domain.portfolio import PortfolioManager
+from src.domain.portfolio_manager import PortfolioManager
 from src.domain.stock import StockManager
 from src.services.market_data import MarketData
 from src.ui.main_window import MainWindow

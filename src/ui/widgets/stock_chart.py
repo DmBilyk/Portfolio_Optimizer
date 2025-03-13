@@ -1,44 +1,246 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QMessageBox, QPushButton
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QMessageBox, QPushButton # pylint: disable=no-name-in-module
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 import yfinance as yf
 from matplotlib.dates import DateFormatter
 import matplotlib.dates as mdates
 import numpy as np
+from dataclasses import dataclass
+from typing import Optional, List, Tuple, Callable
+import pandas as pd
 
+
+@dataclass
+class ChartConfig:
+    """Configuration for chart appearance and behavior"""
+    title_format: str = "{symbol} - Price Dynamics"
+    title_fontsize: int = 16
+    title_fontweight: str = 'bold'
+    title_pad: int = 20
+
+    xlabel: str = 'Date'
+    xlabel_fontsize: int = 12
+    xlabel_fontweight: str = 'bold'
+    xlabel_pad: int = 10
+
+    ylabel: str = 'Price (USD)'
+    ylabel_fontsize: int = 12
+    ylabel_fontweight: str = 'bold'
+    ylabel_pad: int = 10
+
+    line_color: str = '#2196F3'
+    line_width: int = 2
+
+    grid_style: str = '--'
+    grid_alpha: float = 0.7
+    grid_color: str = '#757575'
+
+    hover_enabled: bool = True
+
+
+class StockDataProvider:
+    """Class responsible for fetching stock data"""
+
+    @staticmethod
+    def fetch_stock_data(symbol: str, period: str) -> Optional[pd.DataFrame]:
+        """Fetch stock data from yfinance API"""
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period=period)
+
+            if hist.empty or len(hist) == 0:
+                return None
+
+            if 'Close' not in hist.columns or hist['Close'].empty:
+                return None
+
+            return hist
+        except Exception as e:
+            raise StockDataException(f"Could not fetch stock data: {str(e)}")
+
+
+class StockDataException(Exception):
+    """Exception raised for errors in the stock data fetching process"""
+    pass
+
+
+class ChartRenderer:
+    """Responsible for rendering the chart with stock data"""
+
+    def __init__(self, figure, ax, canvas, config: ChartConfig = ChartConfig()):
+        self.figure = figure
+        self.ax = ax
+        self.canvas = canvas
+        self.config = config
+        self.annotation = None
+        self.current_data = None
+
+    def render(self, data: pd.DataFrame, symbol: str) -> None:
+        """Render the chart with the provided data"""
+        if data is None or data.empty:
+            return
+
+        self.current_data = data
+        self.ax.clear()
+
+        # Plot data
+        self._plot_price_data(data)
+
+        # Set labels and styling
+        self._configure_chart_appearance(symbol)
+
+        # Configure axes
+        self._configure_axes()
+
+        # Update canvas
+        self.figure.tight_layout(pad=2.0)
+        self.annotation = None
+        self.canvas.draw()
+
+    def _plot_price_data(self, data: pd.DataFrame) -> None:
+        """Plot the price data on the chart"""
+        self.ax.plot(
+            data.index, data['Close'],
+            label='Close Price',
+            color=self.config.line_color,
+            linewidth=self.config.line_width
+        )
+
+        # Add invisible scatter points for hover functionality
+        self.ax.scatter(
+            data.index, data['Close'],
+            color=self.config.line_color,
+            s=10,
+            alpha=0.0
+        )
+
+    def _configure_chart_appearance(self, symbol: str) -> None:
+        """Configure the appearance of the chart"""
+        # Set title
+        self.ax.set_title(
+            self.config.title_format.format(symbol=symbol),
+            fontsize=self.config.title_fontsize,
+            fontweight=self.config.title_fontweight,
+            pad=self.config.title_pad
+        )
+
+        # Set x-axis label
+        self.ax.set_xlabel(
+            self.config.xlabel,
+            fontsize=self.config.xlabel_fontsize,
+            fontweight=self.config.xlabel_fontweight,
+            labelpad=self.config.xlabel_pad
+        )
+
+        # Set y-axis label
+        self.ax.set_ylabel(
+            self.config.ylabel,
+            fontsize=self.config.ylabel_fontsize,
+            fontweight=self.config.ylabel_fontweight,
+            labelpad=self.config.ylabel_pad
+        )
+
+        # Configure grid
+        self.ax.grid(
+            True,
+            linestyle=self.config.grid_style,
+            alpha=self.config.grid_alpha,
+            color=self.config.grid_color
+        )
+
+        # Configure legend
+        self.ax.legend(
+            facecolor='white',
+            framealpha=1,
+            shadow=True
+        )
+
+    def _configure_axes(self) -> None:
+        """Configure the axes formatting"""
+        self.ax.xaxis.set_major_formatter(DateFormatter('%Y-%m-%d'))
+        self.ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+        plt.xticks(rotation=45, ha='right')
+
+    def handle_hover(self, event) -> None:
+        """Handle mouse hover events on the chart"""
+        if not self.config.hover_enabled or event.inaxes != self.ax or self.current_data is None:
+            if self.annotation:
+                self.annotation.set_visible(False)
+                self.canvas.draw_idle()
+            return
+
+        x_data = mdates.date2num(self.current_data.index)
+        y_data = self.current_data['Close'].values
+
+        # Find closest point
+        x_dist = np.abs(x_data - event.xdata)
+        closest_idx = np.argmin(x_dist)
+
+        # Check if mouse is close enough to a data point
+        max_distance = (x_data[-1] - x_data[0]) / len(x_data) * 2
+        if x_dist[closest_idx] > max_distance:
+            if self.annotation:
+                self.annotation.set_visible(False)
+                self.canvas.draw_idle()
+            return
+
+        date = self.current_data.index[closest_idx]
+        price = y_data[closest_idx]
+
+        # Clear previous annotation
+        if self.annotation:
+            self.annotation.set_visible(False)
+
+        # Create annotation text
+        text = f'Date: {date.strftime("%Y-%m-%d")}\nPrice: ${price:.2f}'
+
+        # Create annotation
+        self.annotation = self.ax.annotate(
+            text,
+            xy=(mdates.date2num(date), price),
+            xytext=(10, 10), textcoords='offset points',
+            bbox=dict(boxstyle='round,pad=0.5', fc='white', ec='gray', alpha=0.8),
+            arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0')
+        )
+
+        self.canvas.draw_idle()
 
 
 class StockChartWidget(QWidget):
+    """Widget for displaying stock charts with portfolio integration"""
+
     def __init__(self, portfolio_manager, stock_manager):
         super().__init__()
         self.portfolio_manager = portfolio_manager
         self.stock_manager = stock_manager
-        self.annotation = None
-        self.current_data = None
 
+        # Set up the UI components
+        self._init_ui()
+
+        # Set up the chart
+        self._init_chart()
+
+        # Connect signals to slots
+        self._connect_signals()
+
+    def _init_ui(self) -> None:
+        """Initialize the UI components"""
         self.layout = QVBoxLayout()
 
-
+        # Create selectors
         self.portfolio_selector = QComboBox()
         self.portfolio_selector.addItem("Select Portfolio")
-        self.load_portfolios()
-        self.portfolio_selector.currentIndexChanged.connect(self.update_stock_selector)
-
 
         self.stock_selector = QComboBox()
         self.stock_selector.addItem("Select Stock")
         self.stock_selector.setEnabled(False)
 
-
         self.period_selector = QComboBox()
         self.period_selector.addItems(['1MO', '3MO', '6MO', '1Y', '2Y'])
-        self.period_selector.currentTextChanged.connect(self.update_chart)
-
 
         self.refresh_button = QPushButton("Refresh")
-        self.refresh_button.clicked.connect(self.update_chart)
 
-
+        # Create layout for controls
         controls_layout = QHBoxLayout()
         controls_layout.addWidget(QLabel("Portfolio:"))
         controls_layout.addWidget(self.portfolio_selector)
@@ -48,38 +250,53 @@ class StockChartWidget(QWidget):
         controls_layout.addWidget(self.period_selector)
         controls_layout.addWidget(self.refresh_button)
 
+        # Add controls to main layout
+        self.layout.addLayout(controls_layout)
 
+        # Load portfolios
+        self.load_portfolios()
+
+    def _init_chart(self) -> None:
+        """Initialize the chart components"""
+        # Set up matplotlib figure and axes
         plt.style.use('seaborn-v0_8-darkgrid')
         self.figure = plt.figure(figsize=(10, 6))
         self.ax = self.figure.add_subplot(111)
 
-
+        # Set background colors
         self.ax.set_facecolor('#f0f0f0')
         self.figure.patch.set_facecolor('white')
 
+        # Create canvas
         self.canvas = FigureCanvas(self.figure)
 
+        # Create chart renderer
+        self.chart_renderer = ChartRenderer(self.figure, self.ax, self.canvas)
 
-        self.canvas.mpl_connect('motion_notify_event', self.on_hover)
-
-
-        self.layout.addLayout(controls_layout)
+        # Add canvas to main layout
         self.layout.addWidget(self.canvas)
 
+        # Set main layout
         self.setLayout(self.layout)
 
-
+    def _connect_signals(self) -> None:
+        """Connect signals to slots"""
         self.portfolio_selector.currentIndexChanged.connect(self.update_stock_selector)
         self.stock_selector.currentIndexChanged.connect(self.update_chart)
+        self.period_selector.currentTextChanged.connect(self.update_chart)
+        self.refresh_button.clicked.connect(self.update_chart)
+        self.canvas.mpl_connect('motion_notify_event', self._on_hover)
 
-    def load_portfolios(self):
+    def load_portfolios(self) -> None:
+        """Load portfolios into the portfolio selector"""
         portfolios = self.portfolio_manager.get_all_portfolios()
         self.portfolio_selector.clear()
         self.portfolio_selector.addItem("Select Portfolio")
         for port_id, name in portfolios:
             self.portfolio_selector.addItem(name, port_id)
 
-    def update_stock_selector(self):
+    def update_stock_selector(self) -> None:
+        """Update the stock selector based on the selected portfolio"""
         self.stock_selector.clear()
         self.stock_selector.addItem("Select Stock")
 
@@ -96,51 +313,13 @@ class StockChartWidget(QWidget):
 
         self.stock_selector.setEnabled(True)
 
-    def on_hover(self, event):
-        if event.inaxes != self.ax or self.current_data is None:
-            if self.annotation:
-                self.annotation.set_visible(False)
-                self.canvas.draw_idle()
-            return
+    def _on_hover(self, event) -> None:
+        """Handle hover events on the chart"""
+        self.chart_renderer.handle_hover(event)
 
-
-        x_data = mdates.date2num(self.current_data.index)
-        y_data = self.current_data['Close'].values
-
-
-        x_dist = np.abs(x_data - event.xdata)
-        closest_idx = np.argmin(x_dist)
-
-
-        max_distance = (x_data[-1] - x_data[0]) / len(x_data) * 2
-        if x_dist[closest_idx] > max_distance:
-            if self.annotation:
-                self.annotation.set_visible(False)
-                self.canvas.draw_idle()
-            return
-
-        date = self.current_data.index[closest_idx]
-        price = y_data[closest_idx]
-
-
-        if self.annotation:
-            self.annotation.set_visible(False)
-
-
-        text = f'Date: {date.strftime("%Y-%m-%d")}\nPrice: ${price:.2f}'
-
-
-        self.annotation = self.ax.annotate(
-            text,
-            xy=(mdates.date2num(date), price),
-            xytext=(10, 10), textcoords='offset points',
-            bbox=dict(boxstyle='round,pad=0.5', fc='white', ec='gray', alpha=0.8),
-            arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0')
-        )
-
-        self.canvas.draw_idle()
-
-    def update_chart(self):
+    def update_chart(self) -> None:
+        """Update the chart with data for the selected stock and period"""
+        # Check if a portfolio and stock are selected
         if (self.portfolio_selector.currentIndex() <= 0 or
                 self.stock_selector.currentIndex() <= 0):
             return
@@ -149,71 +328,20 @@ class StockChartWidget(QWidget):
         period = self.period_selector.currentText()
 
         try:
-            ticker = yf.Ticker(stock)
-            hist = ticker.history(period=period)
+            # Fetch stock data
+            data = StockDataProvider.fetch_stock_data(stock, period)
 
-            # Check if we received valid data
-            if hist.empty or len(hist) == 0:
-                QMessageBox.warning(self, "Error", f"No data available for {stock} for the selected period.")
+            # Check if data is valid
+            if data is None:
+                QMessageBox.warning(
+                    self,
+                    "Error",
+                    f"No data available for {stock} for the selected period."
+                )
                 return
 
-            # Check if 'Close' column exists and has data
-            if 'Close' not in hist.columns or hist['Close'].empty:
-                QMessageBox.warning(self, "Error", f"Price data missing for {stock}.")
-                return
+            # Render chart
+            self.chart_renderer.render(data, stock)
 
-            self.current_data = hist
-
-            self.ax.clear()
-
-            # Only plot if we have valid data with matching dimensions
-            if len(hist.index) > 0 and len(hist['Close']) > 0 and len(hist.index) == len(hist['Close']):
-                self.ax.plot(hist.index, hist['Close'],
-                             label='Close Price',
-                             color='#2196F3',
-                             linewidth=2)
-
-                self.ax.scatter(hist.index, hist['Close'],
-                                color='#2196F3',
-                                s=10,
-                                alpha=0.0)
-
-                # Change the title format to match the expected format in the test
-                self.ax.set_title(f"{stock} - Price Dynamics",
-                                  fontsize=16,
-                                  fontweight='bold',
-                                  pad=20)
-
-                self.ax.set_xlabel('Date',
-                                   fontsize=12,
-                                   fontweight='bold',
-                                   labelpad=10)
-
-                self.ax.set_ylabel('Price (USD)',
-                                   fontsize=12,
-                                   fontweight='bold',
-                                   labelpad=10)
-
-                self.ax.grid(True,
-                             linestyle='--',
-                             alpha=0.7,
-                             color='#757575')
-
-                self.ax.legend(facecolor='white',
-                               framealpha=1,
-                               shadow=True)
-
-                self.ax.xaxis.set_major_formatter(DateFormatter('%Y-%m-%d'))
-                self.ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-                plt.xticks(rotation=45, ha='right')
-
-                self.figure.tight_layout(pad=2.0)
-
-                self.annotation = None
-
-                self.canvas.draw()
-            else:
-                QMessageBox.warning(self, "Error", "Invalid data dimensions for plotting.")
-
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"Could not fetch stock data: {str(e)}")
+        except StockDataException as e:
+            QMessageBox.warning(self, "Error", str(e))

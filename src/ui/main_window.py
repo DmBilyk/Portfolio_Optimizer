@@ -5,11 +5,14 @@ This module implements the UI for managing stock portfolios.
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget,
     QPushButton, QTableWidget, QTableWidgetItem, QLabel,
-    QMessageBox, QInputDialog, QFrame, QListWidget, QListWidgetItem
+    QMessageBox, QInputDialog, QFrame, QListWidget, QListWidgetItem # pylint: disable=no-name-in-module
 )
-from PySide6.QtCore import Qt
-from src.ui.widgets.stock_chart import StockChartWidget
-from src.ui.widgets.portfolio_optimizer import PortfolioOptimizerWidget
+from PySide6.QtCore import Qt # pylint: disable=no-name-in-module
+from src.ui.widgets.stock_chart import StockChartWidget # pylint: disable=no-name-in-module
+from src.ui.widgets.portfolio_optimizer import PortfolioOptimizerWidget # pylint: disable=no-name-in-module
+from src.services.portfolio_service import PortfolioService # pylint: disable=no-name-in-module
+
+
 
 
 class MainWindow(QMainWindow):
@@ -62,10 +65,11 @@ class MainWindow(QMainWindow):
 
         charts_tab = StockChartWidget(self.portfolio_manager, self.stock_manager)
 
+        portfolio_service = PortfolioService(
+            self.portfolio_manager, self.stock_manager, self.market_data
+        )
         optimizer_tab = PortfolioOptimizerWidget(
-            self.portfolio_manager,
-            self.stock_manager,
-            self.market_data
+            portfolio_service
         )
 
         self.tabs.addTab(portfolio_tab, "Portfolio Management")
