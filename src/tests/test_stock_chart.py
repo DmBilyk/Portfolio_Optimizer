@@ -1,3 +1,7 @@
+"""
+Unit tests for the StockChartWidget, ChartRenderer, StockDataProvider, and StockChartWidgetIntegration classes.
+"""
+
 import unittest
 from unittest.mock import Mock, patch, MagicMock
 import pandas as pd
@@ -17,10 +21,18 @@ from src.ui.widgets.stock_chart import (
 )
 from matplotlib import pyplot as plt
 
+# Initialize the QApplication instance
 app = QApplication.instance() or QApplication(sys.argv)
 
 class TestStockChartWidget(unittest.TestCase):
+    """
+    Unit tests for the StockChartWidget class.
+    """
+
     def setUp(self):
+        """
+        Set up the test case with mock portfolio and stock managers and the widget instance.
+        """
         self.mock_portfolio_manager = Mock()
         self.mock_stock_manager = Mock()
         self.mock_portfolio_manager.get_all_portfolios.return_value = [
@@ -34,9 +46,15 @@ class TestStockChartWidget(unittest.TestCase):
         self.mock_stock_manager.reset_mock()
 
     def tearDown(self):
+        """
+        Tear down the widget instance.
+        """
         self.widget = None
 
     def test_initialization(self):
+        """
+        Test the initialization of the StockChartWidget.
+        """
         self.assertIsNotNone(self.widget.portfolio_selector)
         self.assertIsNotNone(self.widget.stock_selector)
         self.assertIsNotNone(self.widget.period_selector)
@@ -52,6 +70,9 @@ class TestStockChartWidget(unittest.TestCase):
         self.assertEqual(self.widget.period_selector.count(), 5)
 
     def test_load_portfolios(self):
+        """
+        Test loading portfolios into the widget.
+        """
         self.mock_portfolio_manager.reset_mock()
         self.widget.load_portfolios()
         self.mock_portfolio_manager.get_all_portfolios.assert_called_once()
@@ -62,6 +83,9 @@ class TestStockChartWidget(unittest.TestCase):
         self.assertEqual(self.widget.portfolio_selector.itemData(2), 2)
 
     def test_update_stock_selector_no_portfolio_selected(self):
+        """
+        Test updating the stock selector when no portfolio is selected.
+        """
         self.widget.portfolio_selector.setCurrentIndex(0)
         self.widget.update_stock_selector()
         self.assertFalse(self.widget.stock_selector.isEnabled())
@@ -69,6 +93,9 @@ class TestStockChartWidget(unittest.TestCase):
         self.assertEqual(self.widget.stock_selector.itemText(0), "Select Stock")
 
     def test_update_stock_selector_with_portfolio(self):
+        """
+        Test updating the stock selector with a selected portfolio.
+        """
         self.widget.portfolio_selector.setCurrentIndex(1)
         self.widget.update_stock_selector()
         self.mock_stock_manager.get_portfolio_stocks.assert_called_with(1)
@@ -78,7 +105,14 @@ class TestStockChartWidget(unittest.TestCase):
         self.assertEqual(self.widget.stock_selector.itemText(2), "MSFT")
 
 class TestChartRenderer(unittest.TestCase):
+    """
+    Unit tests for the ChartRenderer class.
+    """
+
     def setUp(self):
+        """
+        Set up the test case with a figure, axes, canvas, and chart configuration.
+        """
         self.figure = plt.figure()
         self.ax = self.figure.add_subplot(111)
         self.canvas = MagicMock()
@@ -94,10 +128,16 @@ class TestChartRenderer(unittest.TestCase):
         }, index=self.dates)
 
     def tearDown(self):
+        """
+        Tear down the figure and renderer instance.
+        """
         plt.close(self.figure)
         self.renderer = None
 
     def test_render(self):
+        """
+        Test rendering the chart with given data.
+        """
         with patch.object(self.renderer, '_plot_price_data') as mock_plot, \
              patch.object(self.renderer, '_configure_chart_appearance') as mock_config, \
              patch.object(self.renderer, '_configure_axes') as mock_axes:
@@ -110,6 +150,9 @@ class TestChartRenderer(unittest.TestCase):
             self.assertIsNone(self.renderer.annotation)
 
     def test_handle_hover(self):
+        """
+        Test handling hover events on the chart.
+        """
         self.renderer.current_data = self.data
         mock_event = Mock()
         mock_event.inaxes = self.ax
@@ -125,8 +168,15 @@ class TestChartRenderer(unittest.TestCase):
             self.assertIn(f"${self.data['Close'][5]:.2f}", annotation_text)
 
 class TestStockDataProvider(unittest.TestCase):
+    """
+    Unit tests for the StockDataProvider class.
+    """
+
     @patch('yfinance.Ticker')
     def test_fetch_stock_data_valid(self, mock_ticker):
+        """
+        Test fetching valid stock data.
+        """
         dates = pd.date_range(start='2023-01-01', periods=10, freq='D')
         mock_data = pd.DataFrame({
             'Open': np.random.randn(10) + 100,
@@ -145,6 +195,9 @@ class TestStockDataProvider(unittest.TestCase):
 
     @patch('yfinance.Ticker')
     def test_fetch_stock_data_empty(self, mock_ticker):
+        """
+        Test fetching stock data when the result is empty.
+        """
         mock_ticker_instance = Mock()
         mock_ticker_instance.history.return_value = pd.DataFrame()
         mock_ticker.return_value = mock_ticker_instance
@@ -153,6 +206,9 @@ class TestStockDataProvider(unittest.TestCase):
 
     @patch('yfinance.Ticker')
     def test_fetch_stock_data_missing_close(self, mock_ticker):
+        """
+        Test fetching stock data when the 'Close' column is missing.
+        """
         dates = pd.date_range(start='2023-01-01', periods=10, freq='D')
         mock_data = pd.DataFrame({
             'Open': np.random.randn(10) + 100,
@@ -168,6 +224,9 @@ class TestStockDataProvider(unittest.TestCase):
 
     @patch('yfinance.Ticker')
     def test_fetch_stock_data_exception(self, mock_ticker):
+        """
+        Test fetching stock data when an exception occurs.
+        """
         mock_ticker_instance = Mock()
         mock_ticker_instance.history.side_effect = Exception("Test error")
         mock_ticker.return_value = mock_ticker_instance
@@ -177,7 +236,14 @@ class TestStockDataProvider(unittest.TestCase):
         self.assertIn("Test error", str(context.exception))
 
 class TestStockChartWidgetIntegration(unittest.TestCase):
+    """
+    Integration tests for the StockChartWidget class.
+    """
+
     def setUp(self):
+        """
+        Set up the test case with mock portfolio and stock managers and the widget instance.
+        """
         self.mock_portfolio_manager = Mock()
         self.mock_stock_manager = Mock()
         self.mock_portfolio_manager.get_all_portfolios.return_value = [
@@ -189,10 +255,16 @@ class TestStockChartWidgetIntegration(unittest.TestCase):
         self.widget = StockChartWidget(self.mock_portfolio_manager, self.mock_stock_manager)
 
     def tearDown(self):
+        """
+        Tear down the widget instance.
+        """
         self.widget = None
 
     @patch('src.ui.widgets.stock_chart.StockDataProvider.fetch_stock_data')
     def test_update_chart_valid_data(self, mock_fetch_data):
+        """
+        Test updating the chart with valid data.
+        """
         dates = pd.date_range(start='2023-01-01', periods=10, freq='D')
         mock_data = pd.DataFrame({
             'Open': np.random.randn(10) + 100,
@@ -213,6 +285,9 @@ class TestStockChartWidgetIntegration(unittest.TestCase):
 
     @patch('src.ui.widgets.stock_chart.StockDataProvider.fetch_stock_data')
     def test_update_chart_empty_data(self, mock_fetch_data):
+        """
+        Test updating the chart when the fetched data is empty.
+        """
         mock_fetch_data.return_value = None
         self.widget.portfolio_selector.setCurrentIndex(1)
         self.widget.update_stock_selector()
@@ -226,6 +301,9 @@ class TestStockChartWidgetIntegration(unittest.TestCase):
 
     @patch('src.ui.widgets.stock_chart.StockDataProvider.fetch_stock_data')
     def test_update_chart_exception(self, mock_fetch_data):
+        """
+        Test updating the chart when an exception occurs during data fetching.
+        """
         mock_fetch_data.side_effect = StockDataException("Test error")
         self.widget.portfolio_selector.setCurrentIndex(1)
         self.widget.update_stock_selector()
