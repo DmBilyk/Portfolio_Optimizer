@@ -157,7 +157,7 @@ class TestChartRenderer(unittest.TestCase):
         mock_event = Mock()
         mock_event.inaxes = self.ax
         mock_event.xdata = mdates.date2num(self.dates[5])
-        mock_event.ydata = self.data['Close'][5]
+        mock_event.ydata = self.data['Close'].iloc[5]
         with patch.object(self.ax, 'annotate') as mock_annotate:
             mock_annotation = Mock()
             mock_annotate.return_value = mock_annotation
@@ -165,7 +165,8 @@ class TestChartRenderer(unittest.TestCase):
             mock_annotate.assert_called_once()
             annotation_text = mock_annotate.call_args[0][0]
             self.assertIn(self.dates[5].strftime("%Y-%m-%d"), annotation_text)
-            self.assertIn(f"${self.data['Close'][5]:.2f}", annotation_text)
+            self.assertIn(f"${self.data['Close'].iloc[5]:.2f}", annotation_text)
+
 
 class TestStockDataProvider(unittest.TestCase):
     """
