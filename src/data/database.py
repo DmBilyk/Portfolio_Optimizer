@@ -1,25 +1,72 @@
 import sqlite3
+import os
+import sys
 from datetime import datetime
 from src.data.models import StockMetrics, OptimizedPortfolio
 
 
+def singleton(cls):
+    """Декоратор, що перетворює клас на Singleton."""
+    instances = {}
+
+    def get_instance(*args, **kwargs):
+        if cls not in instances:
+            instances[cls] = cls(*args, **kwargs)
+        return instances[cls]
+
+    return get_instance
+
+
+@singleton
 class Database:
     """
     Database handler for portfolio management system.
     Provides methods for storing and retrieving portfolio data, stock metrics,
     and optimized portfolio calculations.
+
+    Implemented using the Singleton pattern to ensure only one database connection
+    is active throughout the application.
     """
 
     def __init__(self, db_name="portfolio.db"):
         """
-        Initialize database connection and create necessary tables.
+        Initialize database connection and create necessary tables if not already initialized.
 
-        Args:
-            db_name (str): The name of the SQLite database file.
         """
-        self.connection = sqlite3.connect(db_name)
+        # Визначаємо шлях до бази даних з урахуванням упакованого додатку
+        self.db_path = self._get_db_path(db_name)
+        self.connection = sqlite3.connect(self.db_path)
         self.cursor = self.connection.cursor()
         self._create_tables()
+
+    def _get_db_path(self, db_name):
+        """
+        Get the correct database path based on whether the application
+        is running as a script, frozen application, or macOS bundle.
+
+
+
+        """
+
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+
+            if sys.platform == 'darwin':
+
+                app_name = os.path.basename(sys.executable).split('.')[0]
+                base_dir = os.path.expanduser(f'~/Library/Application Support/{app_name}')
+            else:
+
+                base_dir = os.path.dirname(sys.executable)
+        else:
+
+            base_dir = os.path.abspath(os.path.dirname(__file__))
+
+
+        data_dir = os.path.join(base_dir, 'data')
+        os.makedirs(data_dir, exist_ok=True)
+
+
+        return os.path.join(data_dir, db_name)
 
     def _create_tables(self):
         """
@@ -27,7 +74,7 @@ class Database:
         Handles portfolio, stock, stock_metrics, optimized_portfolio, and optimized_weights tables.
         """
         try:
-            # Portfolio table
+
             self.cursor.execute('''
                 CREATE TABLE IF NOT EXISTS portfolio (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,7 +82,7 @@ class Database:
                 );
             ''')
 
-            # Stock table for individual holdings
+
             self.cursor.execute('''
                 CREATE TABLE IF NOT EXISTS stock (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,7 +95,7 @@ class Database:
                 );
             ''')
 
-            # Stock metrics for optimization calculations
+
             self.cursor.execute('''
                 CREATE TABLE IF NOT EXISTS stock_metrics (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +108,7 @@ class Database:
                 );
             ''')
 
-            # Optimized portfolio data
+
             self.cursor.execute('''
                 CREATE TABLE IF NOT EXISTS optimized_portfolio (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,7 +123,7 @@ class Database:
                 );
             ''')
 
-            # Optimized weights for each stock in optimized portfolios
+
             self.cursor.execute('''
                 CREATE TABLE IF NOT EXISTS optimized_weights (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,9 +143,7 @@ class Database:
         """
         Save stock performance metrics to the database.
 
-        Args:
-            metrics (StockMetrics): A StockMetrics object containing symbol, mean_return,
-                                   volatility, calculation_date, and window_size.
+
         """
         try:
             query = '''
@@ -123,13 +168,7 @@ class Database:
         """
         Retrieve stock metrics from the database for a specific symbol and window size.
 
-        Args:
-            symbol (str): The stock symbol to retrieve metrics for.
-            window_size (int): The time window size used for calculations.
-            max_age_days (int): Maximum age of metrics in days to consider valid.
 
-        Returns:
-            StockMetrics: A StockMetrics object if found, None otherwise.
         """
         try:
             query = '''
@@ -155,10 +194,7 @@ class Database:
         """
         Save an optimized portfolio and its asset weights to the database.
 
-        Args:
-            portfolio (OptimizedPortfolio): Portfolio object with optimization results.
-            weights (dict): Dictionary mapping stock symbols to their weights.
-            stocks_hash (str): Hash representing the unique set of stocks in the portfolio.
+
         """
         try:
             # Insert the portfolio record
@@ -181,7 +217,7 @@ class Database:
             self.cursor.execute(portfolio_query, portfolio_params)
             portfolio_id = self.cursor.lastrowid
 
-            # Insert weight records for each stock
+
             weight_query = '''
                 INSERT INTO optimized_weights (portfolio_id, symbol, weight)
                 VALUES (?, ?, ?)
@@ -198,18 +234,10 @@ class Database:
         """
         Retrieve an optimized portfolio and its weights from the database.
 
-        Args:
-            risk_level (str): The risk level of the portfolio.
-            investment_period (int): The investment period in days.
-            stocks_hash (str): Hash representing the unique set of stocks.
-            max_age_days (int): Maximum age of the optimization in days to consider valid.
 
-        Returns:
-            tuple: (OptimizedPortfolio, dict) containing the portfolio object and weights dictionary,
-                  or (None, None) if not found.
         """
         try:
-            # Get the portfolio record
+
             portfolio_query = '''
                 SELECT op.id, op.risk_level, op.investment_period, 
                        op.expected_return, op.volatility, op.sharpe_ratio
@@ -227,7 +255,7 @@ class Database:
             if not portfolio_row:
                 return None, None
 
-            # Create portfolio object
+
             portfolio = OptimizedPortfolio(
                 portfolio_row[1],  # risk_level
                 portfolio_row[2],  # investment_period
@@ -236,7 +264,7 @@ class Database:
                 portfolio_row[5]  # sharpe_ratio
             )
 
-            # Get the weights for this portfolio
+
             weights_query = '''
                 SELECT symbol, weight
                 FROM optimized_weights
@@ -251,6 +279,29 @@ class Database:
             print(f"Error getting optimized portfolio: {e}")
             return None, None
 
+    def backup_database(self, backup_path=None):
+        """
+        Create a backup of the database.
+
+        """
+        try:
+            if not backup_path:
+                # Generate backup filename with timestamp
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_dir = os.path.dirname(self.db_path)
+                backup_name = f"portfolio_backup_{timestamp}.db"
+                backup_path = os.path.join(backup_dir, backup_name)
+
+
+            backup_conn = sqlite3.connect(backup_path)
+            self.connection.backup(backup_conn)
+            backup_conn.close()
+
+            return backup_path
+        except sqlite3.Error as e:
+            print(f"Error creating database backup: {e}")
+            return None
+
     def close(self):
         """
         Close the database connection properly.
@@ -258,3 +309,8 @@ class Database:
         """
         if self.connection:
             self.connection.close()
+
+    @classmethod
+    def get_instance(cls, db_name="portfolio.db"):
+
+        return cls(db_name)

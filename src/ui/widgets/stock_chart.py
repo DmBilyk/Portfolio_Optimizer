@@ -83,16 +83,16 @@ class ChartRenderer:
         self.current_data = data
         self.ax.clear()
 
-        # Plot data
+
         self._plot_price_data(data)
 
-        # Set labels and styling
+
         self._configure_chart_appearance(symbol)
 
-        # Configure axes
+
         self._configure_axes()
 
-        # Update canvas
+
         self.figure.tight_layout(pad=2.0)
         self.annotation = None
         self.canvas.draw()
@@ -106,7 +106,7 @@ class ChartRenderer:
             linewidth=self.config.line_width
         )
 
-        # Add invisible scatter points for hover functionality
+
         self.ax.scatter(
             data.index, data['Close'],
             color=self.config.line_color,
@@ -116,7 +116,7 @@ class ChartRenderer:
 
     def _configure_chart_appearance(self, symbol: str) -> None:
         """Configure the appearance of the chart"""
-        # Set title
+
         self.ax.set_title(
             self.config.title_format.format(symbol=symbol),
             fontsize=self.config.title_fontsize,
@@ -124,7 +124,7 @@ class ChartRenderer:
             pad=self.config.title_pad
         )
 
-        # Set x-axis label
+
         self.ax.set_xlabel(
             self.config.xlabel,
             fontsize=self.config.xlabel_fontsize,
@@ -132,7 +132,7 @@ class ChartRenderer:
             labelpad=self.config.xlabel_pad
         )
 
-        # Set y-axis label
+
         self.ax.set_ylabel(
             self.config.ylabel,
             fontsize=self.config.ylabel_fontsize,
@@ -140,7 +140,7 @@ class ChartRenderer:
             labelpad=self.config.ylabel_pad
         )
 
-        # Configure grid
+
         self.ax.grid(
             True,
             linestyle=self.config.grid_style,
@@ -148,7 +148,7 @@ class ChartRenderer:
             color=self.config.grid_color
         )
 
-        # Configure legend
+
         self.ax.legend(
             facecolor='white',
             framealpha=1,
@@ -172,11 +172,11 @@ class ChartRenderer:
         x_data = mdates.date2num(self.current_data.index)
         y_data = self.current_data['Close'].values
 
-        # Find closest point
+
         x_dist = np.abs(x_data - event.xdata)
         closest_idx = np.argmin(x_dist)
 
-        # Check if mouse is close enough to a data point
+
         max_distance = (x_data[-1] - x_data[0]) / len(x_data) * 2
         if x_dist[closest_idx] > max_distance:
             if self.annotation:
@@ -187,14 +187,14 @@ class ChartRenderer:
         date = self.current_data.index[closest_idx]
         price = y_data[closest_idx]
 
-        # Clear previous annotation
+
         if self.annotation:
             self.annotation.set_visible(False)
 
-        # Create annotation text
+
         text = f'Date: {date.strftime("%Y-%m-%d")}\nPrice: ${price:.2f}'
 
-        # Create annotation
+
         self.annotation = self.ax.annotate(
             text,
             xy=(mdates.date2num(date), price),
@@ -214,20 +214,20 @@ class StockChartWidget(QWidget):
         self.portfolio_manager = portfolio_manager
         self.stock_manager = stock_manager
 
-        # Set up the UI components
+
         self._init_ui()
 
-        # Set up the chart
+
         self._init_chart()
 
-        # Connect signals to slots
+
         self._connect_signals()
 
     def _init_ui(self) -> None:
         """Initialize the UI components"""
         self.layout = QVBoxLayout()
 
-        # Create selectors
+
         self.portfolio_selector = QComboBox()
         self.portfolio_selector.addItem("Select Portfolio")
 
@@ -240,7 +240,7 @@ class StockChartWidget(QWidget):
 
         self.refresh_button = QPushButton("Refresh")
 
-        # Create layout for controls
+
         controls_layout = QHBoxLayout()
         controls_layout.addWidget(QLabel("Portfolio:"))
         controls_layout.addWidget(self.portfolio_selector)
@@ -250,33 +250,33 @@ class StockChartWidget(QWidget):
         controls_layout.addWidget(self.period_selector)
         controls_layout.addWidget(self.refresh_button)
 
-        # Add controls to main layout
+
         self.layout.addLayout(controls_layout)
 
-        # Load portfolios
+
         self.load_portfolios()
 
     def _init_chart(self) -> None:
         """Initialize the chart components"""
-        # Set up matplotlib figure and axes
+
         plt.style.use('seaborn-v0_8-darkgrid')
         self.figure = plt.figure(figsize=(10, 6))
         self.ax = self.figure.add_subplot(111)
 
-        # Set background colors
+
         self.ax.set_facecolor('#f0f0f0')
         self.figure.patch.set_facecolor('white')
 
-        # Create canvas
+
         self.canvas = FigureCanvas(self.figure)
 
-        # Create chart renderer
+
         self.chart_renderer = ChartRenderer(self.figure, self.ax, self.canvas)
 
-        # Add canvas to main layout
+
         self.layout.addWidget(self.canvas)
 
-        # Set main layout
+
         self.setLayout(self.layout)
 
     def _connect_signals(self) -> None:
@@ -319,7 +319,6 @@ class StockChartWidget(QWidget):
 
     def update_chart(self) -> None:
         """Update the chart with data for the selected stock and period"""
-        # Check if a portfolio and stock are selected
         if (self.portfolio_selector.currentIndex() <= 0 or
                 self.stock_selector.currentIndex() <= 0):
             return
@@ -328,10 +327,10 @@ class StockChartWidget(QWidget):
         period = self.period_selector.currentText()
 
         try:
-            # Fetch stock data
+
             data = StockDataProvider.fetch_stock_data(stock, period)
 
-            # Check if data is valid
+
             if data is None:
                 QMessageBox.warning(
                     self,
@@ -340,7 +339,7 @@ class StockChartWidget(QWidget):
                 )
                 return
 
-            # Render chart
+
             self.chart_renderer.render(data, stock)
 
         except StockDataException as e:

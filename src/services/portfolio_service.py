@@ -17,12 +17,12 @@ class PortfolioService:
         """
         from src.domain.portfolio.optimizer import MarkowitzOptimizer
 
-        # Get market data
+
         stock_symbols = self.market_data.get_all_stock_symbols()
         returns_data = self.market_data.get_historical_returns(stock_symbols)
         current_prices = self.market_data.get_current_prices(stock_symbols)
 
-        # Create and run optimizer
+
         optimizer = MarkowitzOptimizer(
             stock_symbols,
             returns_data,
@@ -32,19 +32,19 @@ class PortfolioService:
 
         optimal_portfolio = optimizer.optimize_portfolio()
 
-        # Process optimal portfolio into actual stocks with shares
+
         min_investment_usage = 0.90
         max_investment_usage = 1.02
 
         stock_data = []
         total_invested = 0
 
-        # Convert weights to actual shares
+
         for symbol, weight in optimal_portfolio['weights'].items():
             target_amount = weight * investment
             price = current_prices[symbol]
 
-            # Calculate shares and actual investment amount
+
             shares = int(target_amount / price)
             actual_amount = shares * price
 
@@ -58,7 +58,7 @@ class PortfolioService:
                 })
                 total_invested += actual_amount
 
-        # Adjust shares to meet investment target
+
         stock_data = self._adjust_shares_for_target(
             stock_data,
             investment,
@@ -67,7 +67,7 @@ class PortfolioService:
             max_investment_usage
         )
 
-        # Recalculate total invested and weights
+
         total_invested = sum(stock['amount'] for stock in stock_data)
         for stock in stock_data:
             stock['weight'] = stock['amount'] / total_invested
@@ -85,7 +85,7 @@ class PortfolioService:
     def _adjust_shares_for_target(self, stock_data, investment, total_invested,
                                   min_investment_usage, max_investment_usage):
         """Adjust shares to meet target investment range"""
-        # Add shares if we're under minimum target
+
         while total_invested < investment * min_investment_usage:
             stock_data.sort(key=lambda x: x['weight'], reverse=True)
             added_shares = False
@@ -103,7 +103,7 @@ class PortfolioService:
             if not added_shares or total_invested >= investment * max_investment_usage:
                 break
 
-        # Remove shares if we're over maximum target
+
         if total_invested > investment * max_investment_usage:
             stock_data.sort(key=lambda x: x['weight'])
             for stock in stock_data:
