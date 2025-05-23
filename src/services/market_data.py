@@ -1,7 +1,6 @@
 import yfinance as yf
 import pandas as pd
 import os
-import json
 import pickle
 import hashlib
 from datetime import datetime, timedelta
